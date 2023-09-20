@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using Newtonsoft.Json.Linq;
 using System.Reflection;
 using Newtonsoft.Json;
+using System.IO;
 
 namespace addOnRetencion
 {
@@ -203,6 +204,8 @@ namespace addOnRetencion
 
                     }
                     #endregion
+
+                    
                 }
                 #endregion
 
@@ -212,6 +215,48 @@ namespace addOnRetencion
                     //agarramos el ID del form
                     SAPbouiCOM.Form form = SAPbouiCOM.Framework.Application.SBO_Application.Forms.Item(FormUID);
                     formPago = form;
+
+                    #region CREAR BOTON PARA EXPORTAR JSON
+                    //agregar boton para exportar txt
+                    if (pVal.EventType == BoEventTypes.et_FORM_LOAD && pVal.BeforeAction == true)
+                    {
+                        SAPbouiCOM.Form oForm = SAPbouiCOM.Framework.Application.SBO_Application.Forms.Item(FormUID);
+                        Item oItem;
+                        SAPbouiCOM.Button oButton;
+                        oItem = oForm.Items.Add("btnJson", BoFormItemTypes.it_BUTTON);
+                        //Inicializando el objeto boton con la referencia del objeto item
+                        oButton = (SAPbouiCOM.Button)oItem.Specific;
+                        //Agregando propiedades al boton
+                        oButton.Caption = "Exportar Json";
+                        //agregando posicio del boton
+                        oItem.Top = oForm.Height - (oItem.Height + 9);
+                        oItem.Left = (oItem.Width + 20) + 60;
+                    }
+
+                    if(pVal.ItemUID=="btnJson" && pVal.BeforeAction==false && pVal.EventType == BoEventTypes.et_ITEM_PRESSED)
+                    {
+                        //agarramos las variables del pago
+                        EditText oDocNum = (SAPbouiCOM.EditText)form.Items.Item("3").Specific;
+                        string v_DocNum = oDocNum.Value;
+                        EditText oFecha = (SAPbouiCOM.EditText)form.Items.Item("10").Specific;
+                        string v_fecha = oFecha.Value;
+                        //abrimos el form para exportar
+                        SAPbouiCOM.Framework.Application.SBO_Application.ActivateMenuItem("addOnRetencion.Form1");
+                        SAPbouiCOM.Form formJson = SAPbouiCOM.Framework.Application.SBO_Application.Forms.ActiveForm;
+                        //agarramos los campos y mandamos las variables del pago
+                        EditText oFechaJson = (EditText)formJson.Items.Item("Item_3").Specific;
+                        EditText oDocJson = (EditText)formJson.Items.Item("Item_4").Specific;
+                        SAPbouiCOM.Button oBtnJson = (SAPbouiCOM.Button)formJson.Items.Item("Item_5").Specific;
+                        SAPbouiCOM.Button oBtnCancel = (SAPbouiCOM.Button)formJson.Items.Item("Item_6").Specific;
+                        oFechaJson.Value = v_fecha;
+                        oDocJson.Value = v_DocNum;
+                        oBtnJson.Item.Click();
+                        oBtnCancel.Item.Click();
+
+
+
+                    }
+                    #endregion
 
                     #region GRILLA
                     if (pVal.ItemUID == "20" && pVal.EventType==BoEventTypes.et_CLICK && pVal.BeforeAction==false)
@@ -304,6 +349,15 @@ namespace addOnRetencion
                                     oDatosRet.MoveNext();
                                 }
                             }                       
+                    }
+                    #endregion
+
+
+                    #region EXPORTAR JSON
+                    if(pVal.ItemUID=="btnJson" && pVal.BeforeAction==false && pVal.EventType == BoEventTypes.et_CLICK)
+                    {
+                        SAPbouiCOM.EditText oDoc = (SAPbouiCOM.EditText)form.Items.Item("3").Specific;
+                        string v_doc = oDoc.Value;
                     }
                     #endregion
 
@@ -651,6 +705,7 @@ namespace addOnRetencion
                     }
                 }
                 #endregion
+              
 
             }
             catch (Exception ex)
@@ -791,7 +846,7 @@ namespace addOnRetencion
             
         }
 
-
+       
 
     }
 }

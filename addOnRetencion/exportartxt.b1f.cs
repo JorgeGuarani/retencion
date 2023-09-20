@@ -58,6 +58,7 @@ namespace addOnRetencion
         private SAPbouiCOM.Button btncancelar;
         private SAPbouiCOM.StaticText lbldesde;
         private SAPbouiCOM.Form oForm;
+        private SAPbouiCOM.Button btnJson;
         #endregion
 
         private void btncancelar_ClickAfter(object sboObject, SAPbouiCOM.SBOItemEventArg pVal)
@@ -158,7 +159,9 @@ namespace addOnRetencion
                            "INNER JOIN OCRD T2 ON T1.\"CardCode\"=T2.\"CardCode\" "+
                            "INNER JOIN PCH1 T3 ON T1.\"DocEntry\"=T3.\"DocEntry\" "+
                            "LEFT JOIN \"@RET_CALCULO\" T4 ON T1.\"DocNum\"=T4.\"U_DocNum\" "+
-                           "WHERE T0.\"DocNum\"='"+ v_OP + "' AND T3.\"TaxCode\"<>'IVA_EXE' ";
+                           "WHERE T0.\"DocNum\"='"+ v_OP + "' AND T3.\"TaxCode\"<>'IVA_EXE' "+
+                           "GROUP BY T0.\"DocDate\", T2.\"U_iNatRec\", T1.\"CardName\" , T2.\"LicTradNum\", T1.\"NumAtCard\" , T1.\"GroupNum\", T1.\"Installmnt\", T1.\"DocDate\" , T1.\"U_TIMB\" , T3.\"TaxCode\","+
+                           "T1.\"DocTotal\", T1.\"Comments\", T0.\"DocDate\", T4.\"U_RetReta\",T4.\"U_RetIva\" ";
 
             //consultamos las facturas de la OP
             string v_json = null;
@@ -235,7 +238,14 @@ namespace addOnRetencion
             dynamic objectJson = ConvertDataTableToArray(dt);
             //grabamos el json en el escritorio
             var jsontowrite = JsonConvert.SerializeObject(objectJson, Newtonsoft.Json.Formatting.Indented);
-            string path = Environment.GetFolderPath(Environment.SpecialFolder.Desktop) + "\\Pagos-TESAKA-FRIGORIFICO GUARANI SACI.txt";
+            //creamos una carpeta en el escritorio para guardar el excel
+            string carpeta = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            string CarpEscr = carpeta + "\\Retenciones-Tesaka";
+            if (!Directory.Exists(CarpEscr))
+            {
+                Directory.CreateDirectory(CarpEscr);
+            }
+            string path = CarpEscr + "\\Pagos-TESAKA-FRIGORIFICO GUARANI SACI.txt";
             using (var writer = new StreamWriter(path))
             {
                 writer.Write(jsontowrite);
@@ -394,5 +404,7 @@ namespace addOnRetencion
             return dataArray.ToArray();            
         }
 
+
+      
     }
 }
