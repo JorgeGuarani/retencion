@@ -33,6 +33,8 @@ namespace addOnRetencion
             this.btnexport.ClickAfter += new SAPbouiCOM._IButtonEvents_ClickAfterEventHandler(this.btnexport_ClickAfter);
             this.btncancelar = ((SAPbouiCOM.Button)(this.GetItem("Item_6").Specific));
             this.btncancelar.ClickAfter += new SAPbouiCOM._IButtonEvents_ClickAfterEventHandler(this.btncancelar_ClickAfter);
+            this.StaticText0 = ((SAPbouiCOM.StaticText)(this.GetItem("Item_2").Specific));
+            this.txtcoti = ((SAPbouiCOM.EditText)(this.GetItem("Item_7").Specific));
             this.OnCustomInitialize();
 
         }
@@ -59,6 +61,8 @@ namespace addOnRetencion
         private SAPbouiCOM.StaticText lbldesde;
         private SAPbouiCOM.Form oForm;
         private SAPbouiCOM.Button btnJson;
+        private SAPbouiCOM.StaticText StaticText0;
+        private SAPbouiCOM.EditText txtcoti;
         #endregion
 
         private void btncancelar_ClickAfter(object sboObject, SAPbouiCOM.SBOItemEventArg pVal)
@@ -101,6 +105,7 @@ namespace addOnRetencion
             //agarramos las variables y hacemos un control
             string v_fechaDesde = txtdesde.Value;
             string v_OP = txtOP.Value;
+            string v_cotiMonto = txtcoti.Value;
             //verificamos que los campos no queden vacíos
             if (string.IsNullOrEmpty(v_fechaDesde))
             {
@@ -138,11 +143,11 @@ namespace addOnRetencion
                            //detalle
                            "'1' AS \"cantidad\", "+
                            "CASE WHEN T3.\"TaxCode\"='IVA_10' THEN 10 ELSE 5 END AS \"tasa aplica\", "+
-                           "T1.\"DocTotal\" AS \"precio\", "+
+                           "CASE WHEN T1.\"DocCur\"='GS' THEN T1.\"DocTotal\" ELSE T1.\"DocTotalFC\" END AS \"precio\", " +
                            "T1.\"Comments\", "+
                            //retencion
                            "T0.\"DocDate\" AS \"fecha ret\", "+
-                           "'PYG' AS \"moneda\", "+
+                           "CASE WHEN T1.\"DocCur\"='GS' THEN 'PYG' ELSE 'USD' END AS \"moneda\", " +
                            "CASE WHEN T4.\"U_RetReta\" IS NULL THEN 'false' ELSE 'true' END AS \"retencionRenta\", "+
                            "CASE WHEN T4.\"U_RetReta\" IS NULL THEN '' ELSE 'RENTA_EMPRESARIAL_REGISTRADO.1' END AS \"conceptoRenta\", " +
                            "CASE WHEN T4.\"U_RetIva\" IS NULL THEN 'false' ELSE 'true' END AS \"retencionIva\", "+
@@ -161,7 +166,7 @@ namespace addOnRetencion
                            "LEFT JOIN \"@RET_CALCULO\" T4 ON T1.\"DocNum\"=T4.\"U_DocNum\" "+
                            "WHERE T0.\"DocNum\"='"+ v_OP + "' AND T3.\"TaxCode\"<>'IVA_EXE' "+
                            "GROUP BY T0.\"DocDate\", T2.\"U_iNatRec\", T1.\"CardName\" , T2.\"LicTradNum\", T1.\"NumAtCard\" , T1.\"GroupNum\", T1.\"Installmnt\", T1.\"DocDate\" , T1.\"U_TIMB\" , T3.\"TaxCode\","+
-                           "T1.\"DocTotal\", T1.\"Comments\", T0.\"DocDate\", T4.\"U_RetReta\",T4.\"U_RetIva\" ";
+                           "T1.\"DocTotal\", T1.\"Comments\", T0.\"DocDate\", T4.\"U_RetReta\",T4.\"U_RetIva\",T1.\"DocTotalFC\",T1.\"DocCur\" ";
 
             //consultamos las facturas de la OP
             string v_json = null;
@@ -235,7 +240,16 @@ namespace addOnRetencion
                
                 oFacturas.MoveNext();              
             }
-            dynamic objectJson = ConvertDataTableToArray(dt);
+            dynamic objectJson;
+            if (!string.IsNullOrEmpty(v_cotiMonto))
+            {
+                 objectJson = ConvertDataTableToArrayUSD(dt,v_cotiMonto);
+            }
+            else
+            {
+                objectJson = ConvertDataTableToArray(dt);
+            }
+           
             //grabamos el json en el escritorio
             var jsontowrite = JsonConvert.SerializeObject(objectJson, Newtonsoft.Json.Formatting.Indented);
             //creamos una carpeta en el escritorio para guardar el excel
@@ -255,7 +269,7 @@ namespace addOnRetencion
 
         }
 
-        //funcion para crear el json
+        //funcion para crear el json GS
         private static object[] ConvertDataTableToArray(DataTable dataTable)
         {
             List <object> dataArray = new List<object>();
@@ -314,7 +328,7 @@ namespace addOnRetencion
                         {
                             { "cantidad", int.Parse(row[10].ToString()) },
                             { "tasaAplica", row[11].ToString() },
-                            { "precioUnitario", int.Parse(row[12].ToString()) },
+                            { "precioUnitario", double.Parse(row[12].ToString()) },
                             { "descripcion", row[13].ToString() }
                         }
                      },
@@ -376,7 +390,7 @@ namespace addOnRetencion
                         {
                             { "cantidad", int.Parse(row[10].ToString()) },
                             { "tasaAplica", row[11].ToString() },
-                            { "precioUnitario", int.Parse(row[12].ToString()) },
+                            { "precioUnitario", double.Parse(row[12].ToString()) },
                             { "descripcion", row[13].ToString() }
                         }
                      },
@@ -404,7 +418,158 @@ namespace addOnRetencion
             return dataArray.ToArray();            
         }
 
+        //funcion para crear el json USD
+        private static object[] ConvertDataTableToArrayUSD(DataTable dataTable,string coti)
+        {
+            
+            List<object> dataArray = new List<object>();
+            foreach (DataRow row in dataTable.Rows)
+            {
 
-      
+                //variable a convertir en el formato correcto
+                //formato de la fecha
+                DateTime v_fecha = DateTime.Parse(row[0].ToString());
+                //formato del ruc
+                string v_ruc = row[3].ToString();
+                int index = v_ruc.IndexOf("-");
+                int longuitud = v_ruc.Length;
+                string ruc = v_ruc.Remove(index, longuitud - index);
+                string dv = v_ruc.Remove(0, index + 1);
+                //datos para la retencion IVA
+                string retRetna = row[16].ToString();
+                string retIva = row[18].ToString();
+
+                if (retIva.Equals("true"))
+                {
+                    //creamos el json
+                    var dataObject = new
+                    {
+                        atributos = new Dictionary<string, string>
+                    {
+                        {"fechaCreacion",v_fecha.ToString("yyyy-MM-dd")},
+                        {"fechaHoraCreacion",v_fecha.ToString("yyyy-MM-dd hh:mm:ss")}
+                    },
+                        informado = new Dictionary<string, string>
+                    {
+                        {"situacion",row[1].ToString() },
+                        {"nombre",row[2].ToString() },
+                        {"ruc",ruc },
+                        {"dv",dv },
+                        {"domicilio","" },
+                        {"direccion","" },
+                        {"correoElectronico","" },
+                        {"tipoIdentificacion","" },
+                        {"identificacion","" },
+                        {"pais","" },
+                        {"telefono","" }
+                    },
+                        transaccion = new Dictionary<string, object>
+                    {
+                        {"condicionCompra",row[5].ToString() },
+                        {"numeroComprobanteVenta",row[4].ToString() },
+                        {"cuotas",int.Parse(row[6].ToString()) },
+                        {"tipoComprobante",int.Parse(row[7].ToString()) },
+                        {"fecha",v_fecha.ToString("yyyy-MM-dd") },
+                        {"numeroTimbrado",row[9].ToString() }
+                    },
+                        detalle = new List<Dictionary<string, object>>
+                    {
+                        new Dictionary<string, object>
+                        {
+                            { "cantidad", int.Parse(row[10].ToString()) },
+                            { "tasaAplica", row[11].ToString() },
+                            { "precioUnitario", double.Parse(row[12].ToString()) },
+                            { "descripcion", row[13].ToString() }
+                        }
+                     },
+                        retencion = new Dictionary<string, object>
+                    {
+                        { "fecha",v_fecha.ToString("yyyy-MM-dd") },
+                        { "moneda",row[15].ToString() },
+                        { "tipoCambio",int.Parse(coti) },
+                        { "retencionRenta",bool.Parse("false") },
+                        { "conceptoRenta","" },
+                        { "retencionIva",bool.Parse(row[18].ToString()) },
+                        { "conceptoIva",row[19].ToString() },
+                        { "rentaPorcentaje",0 },
+                        { "rentaCabezasBase",0 },
+                        { "rentaCabezasCantidad",0 },
+                        { "rentaToneladasBase",0},
+                        { "rentaToneladasCantidad",0 },
+                        { "ivaPorcentaje5",int.Parse(row[21].ToString()) },
+                        { "ivaPorcentaje10",int.Parse(row[22].ToString()) }
+                    }
+                    };
+                    dataArray.Add(dataObject);
+                }
+                if (retRetna.Equals("true"))
+                {
+                    //creamos el json
+                    var dataObject = new
+                    {
+                        atributos = new Dictionary<string, string>
+                    {
+                        {"fechaCreacion",v_fecha.ToString("yyyy-MM-dd")},
+                        {"fechaHoraCreacion",v_fecha.ToString("yyyy-MM-dd hh:mm:ss")}
+                    },
+                        informado = new Dictionary<string, string>
+                    {
+                        {"situacion",row[1].ToString() },
+                        {"nombre",row[2].ToString() },
+                        {"ruc",ruc },
+                        {"dv",dv },
+                        {"domicilio","" },
+                        {"direccion","" },
+                        {"correoElectronico","" },
+                        {"tipoIdentificacion","" },
+                        {"identificacion","" },
+                        {"pais","" },
+                        {"telefono","" }
+                    },
+                        transaccion = new Dictionary<string, object>
+                    {
+                        {"condicionCompra",row[5].ToString() },
+                        {"numeroComprobanteVenta",row[4].ToString() },
+                        {"cuotas",int.Parse(row[6].ToString()) },
+                        {"tipoComprobante",int.Parse(row[7].ToString()) },
+                        {"fecha",v_fecha.ToString("yyyy-MM-dd") },
+                        {"numeroTimbrado",row[9].ToString() }
+                    },
+                        detalle = new List<Dictionary<string, object>>
+                    {
+                        new Dictionary<string, object>
+                        {
+                            { "cantidad", int.Parse(row[10].ToString()) },
+                            { "tasaAplica", row[11].ToString() },
+                            { "precioUnitario", double.Parse(row[12].ToString()) },
+                            { "descripcion", row[13].ToString() }
+                        }
+                     },
+                        retencion = new Dictionary<string, object>
+                    {
+                        { "fecha",v_fecha.ToString("yyyy-MM-dd") },
+                        { "moneda",row[15].ToString() },
+                        { "tipoCambio",int.Parse(coti) },
+                        { "retencionRenta",bool.Parse(row[16].ToString()) },
+                        { "conceptoRenta",row[17].ToString() },
+                        { "retencionIva",bool.Parse("false") },
+                        { "conceptoIva","" },
+                        { "rentaPorcentaje",double.Parse(row[20].ToString()) },
+                        { "rentaCabezasBase",0 },
+                        { "rentaCabezasCantidad",0 },
+                        { "rentaToneladasBase",0},
+                        { "rentaToneladasCantidad",0 },
+                        { "ivaPorcentaje5",0},
+                        { "ivaPorcentaje10",0 }
+                    }
+                    };
+                    dataArray.Add(dataObject);
+                }
+
+            }
+            return dataArray.ToArray();
+        }
+
+
     }
 }

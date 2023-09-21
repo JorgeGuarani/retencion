@@ -229,17 +229,43 @@ namespace addOnRetencion
                         //Agregando propiedades al boton
                         oButton.Caption = "Exportar Json";
                         //agregando posicio del boton
-                        oItem.Top = oForm.Height - (oItem.Height + 9);
-                        oItem.Left = (oItem.Width + 20) + 60;
+                        oItem.Top = oForm.Height - (oItem.Height + 10);
+                        oItem.Left = (oItem.Width + 20) + 63;
                     }
 
-                    if(pVal.ItemUID=="btnJson" && pVal.BeforeAction==false && pVal.EventType == BoEventTypes.et_ITEM_PRESSED)
+                    //agregar boton para recalcular
+                    if (pVal.EventType == BoEventTypes.et_FORM_LOAD && pVal.BeforeAction == true)
+                    {
+                        SAPbouiCOM.Form oForm = SAPbouiCOM.Framework.Application.SBO_Application.Forms.Item(FormUID);
+                        Item oItem;
+                        SAPbouiCOM.Button oButton;
+                        oItem = oForm.Items.Add("btnRecal", BoFormItemTypes.it_BUTTON);
+                        //Inicializando el objeto boton con la referencia del objeto item
+                        oButton = (SAPbouiCOM.Button)oItem.Specific;
+                        //Agregando propiedades al boton
+                        oButton.Caption = "Recalcular";
+                        //agregando posicio del boton
+                        oItem.Top = oForm.Height - (oItem.Height + 10);
+                        oItem.Left = (oItem.Width + 20) + 134;
+                    }
+
+                    if (pVal.ItemUID=="btnJson" && pVal.BeforeAction==false && pVal.EventType == BoEventTypes.et_ITEM_PRESSED)
                     {
                         //agarramos las variables del pago
                         EditText oDocNum = (SAPbouiCOM.EditText)form.Items.Item("3").Specific;
                         string v_DocNum = oDocNum.Value;
                         EditText oFecha = (SAPbouiCOM.EditText)form.Items.Item("10").Specific;
+                        EditText oCoti = (SAPbouiCOM.EditText)form.Items.Item("41").Specific;
+                        string v_coti = oCoti.Value;
                         string v_fecha = oFecha.Value;
+                        string v_cotiMonto = null;
+                        if (v_coti.Equals("USD"))
+                        {
+                            EditText oCotizacion = (SAPbouiCOM.EditText)form.Items.Item("21").Specific;
+                            v_cotiMonto = oCotizacion.Value;
+                            double cotimonto_v = Math.Round(double.Parse(v_cotiMonto.Replace(".",",")));
+                            v_cotiMonto = cotimonto_v.ToString();
+                        }
                         //abrimos el form para exportar
                         SAPbouiCOM.Framework.Application.SBO_Application.ActivateMenuItem("addOnRetencion.Form1");
                         SAPbouiCOM.Form formJson = SAPbouiCOM.Framework.Application.SBO_Application.Forms.ActiveForm;
@@ -248,8 +274,10 @@ namespace addOnRetencion
                         EditText oDocJson = (EditText)formJson.Items.Item("Item_4").Specific;
                         SAPbouiCOM.Button oBtnJson = (SAPbouiCOM.Button)formJson.Items.Item("Item_5").Specific;
                         SAPbouiCOM.Button oBtnCancel = (SAPbouiCOM.Button)formJson.Items.Item("Item_6").Specific;
+                        EditText ocotiJson = (EditText)formJson.Items.Item("Item_7").Specific;
                         oFechaJson.Value = v_fecha;
                         oDocJson.Value = v_DocNum;
+                        ocotiJson.Value = v_cotiMonto;
                         oBtnJson.Item.Click();
                         oBtnCancel.Item.Click();
 
@@ -819,7 +847,6 @@ namespace addOnRetencion
            
         }
 
-
         //funcion para cargar los cheques
         private static void cargaCheques(List<object> dataArray, SAPbouiCOM.Form oForm)
         {
@@ -844,6 +871,129 @@ namespace addOnRetencion
                 v_filaCheque++;
             }
             
+        }
+
+        //funcion para recalcular
+        private static void recalcular(string docnum)
+        {
+            try
+            {
+                string v_iva = null;
+                string v_renta = null;
+                decimal v_total = 0;
+                decimal v_RetRenta = 0;
+                decimal v_RetIva = 0;
+                string v_Moneda = null;
+                string v_DocEntry = null;
+                int v_cuotas = 0;
+
+                //consultamos el tipo de retención
+                SAPbobsCOM.Recordset otipoRet;
+                otipoRet = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                otipoRet.DoQuery("SELECT \"U_RetIVA\",\"U_RetRenta\",CASE WHEN \"DocCur\"='GS' THEN \"DocTotal\" ELSE \"DocTotalFC\" END,\"DocCur\",\"DocEntry\",\"Installmnt\" FROM OPCH WHERE \"DocNum\"='" + docnum + "' ");
+                while (!otipoRet.EoF)
+                {
+                    v_iva = otipoRet.Fields.Item(0).Value.ToString();
+                    v_renta = otipoRet.Fields.Item(1).Value.ToString();
+                    v_total = decimal.Parse(otipoRet.Fields.Item(2).Value.ToString());
+                    v_Moneda = otipoRet.Fields.Item(3).Value.ToString();
+                    v_DocEntry = otipoRet.Fields.Item(4).Value.ToString();
+                    v_cuotas = int.Parse(otipoRet.Fields.Item(5).Value.ToString());
+                    otipoRet.MoveNext();
+                }
+                //calculamos la retencion
+                if (v_iva.Equals("SI"))
+                {
+                    if (v_Moneda.Equals("USD"))
+                    {
+                        v_RetIva = decimal.Round(((v_total / 21) * 30) / 100, 2);
+                    }
+                    else
+                    {
+                        v_RetIva = Math.Round(((v_total / 21) * 30) / 100);
+                    }
+
+                }
+                //en caso de ser solo IVA
+                if (v_renta.Equals("SI"))
+                {
+                    if (v_Moneda.Equals("USD"))
+                    {
+                        v_RetRenta = decimal.Round((v_total / decimal.Parse("1,05")) * decimal.Parse("0,004"), 2);
+                    }
+                    else
+                    {
+                        v_RetRenta = Math.Round((v_total / decimal.Parse("1,05")) * decimal.Parse("0,004"));
+                    }
+                }
+
+                //guardamos en la tabla de calculo de retención
+                SAPbobsCOM.Recordset codMax;
+                codMax = (Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                codMax.DoQuery("select CASE WHEN MAX(\"DocEntry\")=0 THEN 1 ELSE  MAX(\"DocEntry\") END from \"@RET_CALCULO\" ");
+                int MaxCod = int.Parse(codMax.Fields.Item(0).Value.ToString()) + 1;
+
+
+                string v_NumCuota = null;
+                decimal v_montoCuota = 0;
+                //consultamos si es por cuotas
+                if (v_cuotas > 1)
+                {
+                    SAPbobsCOM.Recordset oCuotas;
+                    oCuotas = (Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                    oCuotas.DoQuery("SELECT \"InstlmntID\",\"InsTotal\" FROM PCH6 WHERE \"DocEntry\"='" + v_DocEntry + "' ");
+                    //recorremos
+                    while (!oCuotas.EoF)
+                    {
+                        string v_cuota = " de " + v_cuotas;
+                        v_NumCuota = oCuotas.Fields.Item(0).Value.ToString();
+                        v_cuota = v_NumCuota + v_cuota;
+                        v_montoCuota = decimal.Parse(oCuotas.Fields.Item(1).Value.ToString());
+                        //calculamos la retencion
+                        if (v_iva.Equals("SI"))
+                        {
+                            if (v_Moneda.Equals("USD"))
+                            {
+                                v_RetIva = decimal.Round(((v_montoCuota / 21) * 30) / 100, 2);
+                            }
+                            else
+                            {
+                                v_RetIva = Math.Round(((v_montoCuota / 21) * 30) / 100);
+                            }
+
+                        }
+                        //en caso de ser solo IVA
+                        if (v_renta.Equals("SI"))
+                        {
+                            if (v_Moneda.Equals("USD"))
+                            {
+                                v_RetRenta = decimal.Round((v_montoCuota / decimal.Parse("1,05")) * decimal.Parse("0,004"), 2);
+                            }
+                            else
+                            {
+                                v_RetRenta = Math.Round((v_montoCuota / decimal.Parse("1,05")) * decimal.Parse("0,004"));
+                            }
+                        }
+
+                        SAPbobsCOM.Recordset oGrabar;
+                        oGrabar = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                        oGrabar.DoQuery("INSERT INTO \"@RET_CALCULO\" (\"Code\",\"DocEntry\",\"U_DocNum\",\"U_Estado\",\"U_RetIva\",\"U_RetReta\",\"U_Plazo\",\"U_Moneda\") VALUES ('" + MaxCod + "','" + MaxCod + "','" + v_docnum + "','P','" + v_RetIva.ToString().Replace(",", ".") + "', '" + v_RetRenta.ToString().Replace(",", ".") + "', '" + v_cuota + "','" + v_Moneda + "') ");
+
+                        MaxCod++;
+                        oCuotas.MoveNext();
+                    }
+                }
+                else
+                {
+                    SAPbobsCOM.Recordset oGrabar;
+                    oGrabar = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                    oGrabar.DoQuery("INSERT INTO \"@RET_CALCULO\" (\"Code\",\"DocEntry\",\"U_DocNum\",\"U_Estado\",\"U_RetIva\",\"U_RetReta\",\"U_Plazo\",\"U_Moneda\") VALUES ('" + MaxCod + "','" + MaxCod + "','" + v_docnum + "','P','" + v_RetIva.ToString().Replace(",", ".") + "', '" + v_RetRenta.ToString().Replace(",", ".") + "','1 de 1','" + v_Moneda + "') ");
+                }
+            }
+            catch (Exception e)
+            {
+                System.Windows.Forms.MessageBox.Show(e.Message);
+            }
         }
 
        
