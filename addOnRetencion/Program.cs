@@ -216,7 +216,7 @@ namespace addOnRetencion
                     SAPbouiCOM.Form form = SAPbouiCOM.Framework.Application.SBO_Application.Forms.Item(FormUID);
                     formPago = form;
 
-                    #region CREAR BOTON PARA EXPORTAR JSON
+                    #region CREAR BOTON
                     //agregar boton para exportar txt
                     if (pVal.EventType == BoEventTypes.et_FORM_LOAD && pVal.BeforeAction == true)
                     {
@@ -249,6 +249,7 @@ namespace addOnRetencion
                         oItem.Left = (oItem.Width + 20) + 134;
                     }
 
+                    //para exportar el Json
                     if (pVal.ItemUID=="btnJson" && pVal.BeforeAction==false && pVal.EventType == BoEventTypes.et_ITEM_PRESSED)
                     {
                         //agarramos las variables del pago
@@ -280,9 +281,47 @@ namespace addOnRetencion
                         ocotiJson.Value = v_cotiMonto;
                         oBtnJson.Item.Click();
                         oBtnCancel.Item.Click();
+                    }
 
+                    //para recalcular los valores de las retenciones
+                    if(pVal.ItemUID=="btnRecal" && pVal.BeforeAction==false && pVal.EventType == BoEventTypes.et_ITEM_PRESSED)
+                    {
+                        SAPbouiCOM.Matrix oMatrix = (SAPbouiCOM.Matrix)formPago.Items.Item("20").Specific;
+                        int v_can = oMatrix.RowCount;
+                        int v_fila = 1;
+                        while (v_fila <= v_can)
+                        {
+                            SAPbouiCOM.CheckBox oCheck = (SAPbouiCOM.CheckBox)oMatrix.Columns.Item("10000127").Cells.Item(v_fila).Specific;
+                            SAPbouiCOM.EditText oDocNum = (SAPbouiCOM.EditText)oMatrix.Columns.Item("1").Cells.Item(v_fila).Specific;
+                            SAPbouiCOM.EditText oIVA = (SAPbouiCOM.EditText)oMatrix.Columns.Item("U_RetValorIva").Cells.Item(v_fila).Specific;
+                            SAPbouiCOM.EditText oRENTA = (SAPbouiCOM.EditText)oMatrix.Columns.Item("U_RetValorRenta").Cells.Item(v_fila).Specific;
+                            bool v_check = oCheck.Checked;
+                            string v_DocNum = null;
+                            if (v_check == true)
+                            {
+                                v_DocNum = oDocNum.Value;
+                                try
+                                {
+                                    recalcular(v_DocNum);
+                                }
+                                catch (Exception e)
+                                {
+                                    System.Windows.Forms.MessageBox.Show(e.Message);
+                                }
 
+                                SAPbobsCOM.Recordset oDatos;
+                                oDatos = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                                oDatos.DoQuery("SELECT \"U_RetIva\",\"U_RetReta\" FROM \"@RET_CALCULO\" WHERE \"U_DocNum\"='"+ v_DocNum + "' ");
+                                string v_iva = oDatos.Fields.Item(0).Value.ToString();
+                                string v_renta = oDatos.Fields.Item(1).Value.ToString();
+                                //double iva_v = double.Parse(v_iva.Replace(",","."));
+                                //double renta_v = double.Parse(v_renta.Replace(",","."));
+                                oIVA.Value = v_iva.Replace(",", ".");
+                                oRENTA.Value = v_renta.Replace(",", ".");
+                            }
 
+                            v_fila++;
+                        }
                     }
                     #endregion
 
@@ -379,7 +418,6 @@ namespace addOnRetencion
                             }                       
                     }
                     #endregion
-
 
                     #region EXPORTAR JSON
                     if(pVal.ItemUID=="btnJson" && pVal.BeforeAction==false && pVal.EventType == BoEventTypes.et_CLICK)
@@ -977,7 +1015,7 @@ namespace addOnRetencion
 
                         SAPbobsCOM.Recordset oGrabar;
                         oGrabar = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
-                        oGrabar.DoQuery("INSERT INTO \"@RET_CALCULO\" (\"Code\",\"DocEntry\",\"U_DocNum\",\"U_Estado\",\"U_RetIva\",\"U_RetReta\",\"U_Plazo\",\"U_Moneda\") VALUES ('" + MaxCod + "','" + MaxCod + "','" + v_docnum + "','P','" + v_RetIva.ToString().Replace(",", ".") + "', '" + v_RetRenta.ToString().Replace(",", ".") + "', '" + v_cuota + "','" + v_Moneda + "') ");
+                        oGrabar.DoQuery("INSERT INTO \"@RET_CALCULO\" (\"Code\",\"DocEntry\",\"U_DocNum\",\"U_Estado\",\"U_RetIva\",\"U_RetReta\",\"U_Plazo\",\"U_Moneda\") VALUES ('" + MaxCod + "','" + MaxCod + "','" + docnum + "','P','" + v_RetIva.ToString().Replace(",", ".") + "', '" + v_RetRenta.ToString().Replace(",", ".") + "', '" + v_cuota + "','" + v_Moneda + "') ");
 
                         MaxCod++;
                         oCuotas.MoveNext();
@@ -987,7 +1025,7 @@ namespace addOnRetencion
                 {
                     SAPbobsCOM.Recordset oGrabar;
                     oGrabar = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
-                    oGrabar.DoQuery("INSERT INTO \"@RET_CALCULO\" (\"Code\",\"DocEntry\",\"U_DocNum\",\"U_Estado\",\"U_RetIva\",\"U_RetReta\",\"U_Plazo\",\"U_Moneda\") VALUES ('" + MaxCod + "','" + MaxCod + "','" + v_docnum + "','P','" + v_RetIva.ToString().Replace(",", ".") + "', '" + v_RetRenta.ToString().Replace(",", ".") + "','1 de 1','" + v_Moneda + "') ");
+                    oGrabar.DoQuery("INSERT INTO \"@RET_CALCULO\" (\"Code\",\"DocEntry\",\"U_DocNum\",\"U_Estado\",\"U_RetIva\",\"U_RetReta\",\"U_Plazo\",\"U_Moneda\") VALUES ('" + MaxCod + "','" + MaxCod + "','" + docnum + "','P','" + v_RetIva.ToString().Replace(",", ".") + "', '" + v_RetRenta.ToString().Replace(",", ".") + "','1 de 1','" + v_Moneda + "') ");
                 }
             }
             catch (Exception e)
