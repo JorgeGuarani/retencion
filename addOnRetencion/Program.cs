@@ -8,6 +8,9 @@ using Newtonsoft.Json.Linq;
 using System.Reflection;
 using Newtonsoft.Json;
 using System.IO;
+using System.Threading;
+using System.Windows.Forms;
+using System.Web.UI.WebControls;
 
 namespace addOnRetencion
 {
@@ -49,7 +52,7 @@ namespace addOnRetencion
                 oApp.Run();
 
                 //conectamos a la base de datos
-                SAPbouiCOM.Framework.Application.SBO_Application.SetStatusBarMessage("AddOn Retenciones conectado!!", SAPbouiCOM.BoMessageTime.bmt_Short, true);
+                SAPbouiCOM.Framework.Application.SBO_Application.SetStatusBarMessage("AddOn Retenciones conectado!!", SAPbouiCOM.BoMessageTime.bmt_Short, false);
 
             }
             catch (Exception ex)
@@ -108,16 +111,38 @@ namespace addOnRetencion
                                 v_cuotas = int.Parse(otipoRet.Fields.Item(5).Value.ToString());
                                 otipoRet.MoveNext();
                             }
+
+                            //impuesto
+                            SAPbobsCOM.Recordset oImpuesto;
+                            oImpuesto = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                            oImpuesto.DoQuery("SELECT \"TaxCode\" FROM PCH1 WHERE \"DocEntry\"='"+ v_DocEntry + "' ");
+                            string v_taxcode = oImpuesto.Fields.Item(0).Value.ToString();
+
                             //calculamos la retencion
                             if (v_iva.Equals("SI"))
                             {
                                 if (v_Moneda.Equals("USD"))
                                 {
-                                    v_RetIva = decimal.Round(((v_total / 21) * 30) / 100, 2);
+                                    if (v_taxcode.Equals("IVA_5"))
+                                    {
+                                        v_RetIva = decimal.Round(((v_total / 21) * 30) / 100, 2);
+                                    }
+                                    if (v_taxcode.Equals("IVA_10"))
+                                    {
+                                        v_RetIva = decimal.Round(((v_total / 11) * 70) / 100, 2);
+                                    }
+
                                 }
                                 else
                                 {
-                                    v_RetIva = Math.Round(((v_total / 21) * 30) / 100);
+                                    if (v_taxcode.Equals("IVA_5"))
+                                    {
+                                        v_RetIva = Math.Round(((v_total / 21) * 30) / 100);
+                                    }
+                                    if (v_taxcode.Equals("IVA_10"))
+                                    {
+                                        v_RetIva = Math.Round(((v_total / 11) * 70) / 100);
+                                    }
                                 }
 
                             }
@@ -199,7 +224,8 @@ namespace addOnRetencion
                         }
                         catch(Exception e)
                         {
-                            System.Windows.Forms.MessageBox.Show(e.Message);
+                           // System.Windows.Forms.MessageBox.Show(e.Message);
+                            SAPbouiCOM.Framework.Application.SBO_Application.MessageBox(e.ToString(), 1, "OK");
                         }                       
 
                     }
@@ -247,6 +273,22 @@ namespace addOnRetencion
                         //agregando posicio del boton
                         oItem.Top = oForm.Height - (oItem.Height + 10);
                         oItem.Left = (oItem.Width + 20) + 134;
+                    }
+
+                    //agregar boton para importar
+                    if (pVal.EventType == BoEventTypes.et_FORM_LOAD && pVal.BeforeAction == true)
+                    {
+                        SAPbouiCOM.Form oForm = SAPbouiCOM.Framework.Application.SBO_Application.Forms.Item(FormUID);
+                        Item oItem;
+                        SAPbouiCOM.Button oButton;
+                        oItem = oForm.Items.Add("btnImp", BoFormItemTypes.it_BUTTON);
+                        //Inicializando el objeto boton con la referencia del objeto item
+                        oButton = (SAPbouiCOM.Button)oItem.Specific;
+                        //Agregando propiedades al boton
+                        oButton.Caption = "Importar Json";
+                        //agregando posicio del boton
+                        oItem.Top = oForm.Height - (oItem.Height + 10);
+                        oItem.Left = (oItem.Width + 20) + 204;
                     }
 
                     //para exportar el Json
@@ -306,7 +348,8 @@ namespace addOnRetencion
                                 }
                                 catch (Exception e)
                                 {
-                                    System.Windows.Forms.MessageBox.Show(e.Message);
+                                   // System.Windows.Forms.MessageBox.Show(e.Message);
+                                    SAPbouiCOM.Framework.Application.SBO_Application.MessageBox(e.ToString(), 1, "OK");
                                 }
 
                                 SAPbobsCOM.Recordset oDatos;
@@ -323,10 +366,31 @@ namespace addOnRetencion
                             v_fila++;
                         }
                     }
-                    #endregion
+
+                    //para importar el json
+                    if (pVal.ItemUID == "btnImp" && pVal.BeforeAction == false && pVal.EventType == BoEventTypes.et_ITEM_PRESSED)
+                    {
+                        //buscamos el archivo txt
+                        Thread t = new Thread(() =>
+                        {
+                            OpenFileDialog openFileDialog = new OpenFileDialog();
+                            DialogResult dr = openFileDialog.ShowDialog();
+                            if (dr == DialogResult.OK)
+                            {
+                                string fileName = openFileDialog.FileName;
+                                leerTXT(fileName);
+                                // FILE.Value = fileName;
+                                //SAPbouiCOM.Framework.Application.SBO_Application.MessageBox(fileName);
+                            }
+                        });          // Kick off a new thread
+                        t.IsBackground = true;
+                        t.SetApartmentState(ApartmentState.STA);
+                        t.Start();
+                    }
+                        #endregion
 
                     #region GRILLA
-                    if (pVal.ItemUID == "20" && pVal.EventType==BoEventTypes.et_CLICK && pVal.BeforeAction==false)
+                        if (pVal.ItemUID == "20" && pVal.EventType==BoEventTypes.et_CLICK && pVal.BeforeAction==false)
                     {
                         SAPbouiCOM.Matrix oMatrix = (SAPbouiCOM.Matrix)form.Items.Item("20").Specific;
 
@@ -439,7 +503,7 @@ namespace addOnRetencion
                     #region MONEDA DE PAGO
                     if (pVal.ItemUID == "8" && pVal.EventType==BoEventTypes.et_COMBO_SELECT && pVal.BeforeAction==false)
                     {
-                        ComboBox oMonepago = (ComboBox)form.Items.Item("8").Specific;
+                        SAPbouiCOM.ComboBox oMonepago = (SAPbouiCOM.ComboBox)form.Items.Item("8").Specific;
                         monedaPago = oMonepago.Selected.Value;
                     }
                     #endregion
@@ -577,10 +641,12 @@ namespace addOnRetencion
                         //varibale de la seccion de transferencia
                         SAPbouiCOM.EditText oTransferencia = (SAPbouiCOM.EditText)form.Items.Item("34").Specific;
                         SAPbouiCOM.ComboBox oTipoMoneda = (SAPbouiCOM.ComboBox)form.Items.Item("8").Specific;
+                        SAPbouiCOM.EditText oFechaTrans = (SAPbouiCOM.EditText)form.Items.Item("44").Specific;
                         double v_coti = decimal.ToDouble(global_coti);
                         string v_tipoMoneda = oTipoMoneda.Selected.Value;
                         string v_tipoMonedaV = oTipoMoneda.Selected.Description;
                         double v_newValor = 0;
+                        string v_frete = null;
                         int v_rows = oMatrix.RowCount;
                         int v_fila = 1;
                         while (v_fila <= v_rows)
@@ -591,11 +657,14 @@ namespace addOnRetencion
                             SAPbouiCOM.EditText oValorRenta = (SAPbouiCOM.EditText)oMatrix.Columns.Item("U_RetValorRenta").Cells.Item(v_fila).Specific;
                             SAPbouiCOM.EditText oTotalLinea = (SAPbouiCOM.EditText)oMatrix.Columns.Item("24").Cells.Item(v_fila).Specific;
                             SAPbouiCOM.ComboBox oTipoPago = (SAPbouiCOM.ComboBox)oMatrix.Columns.Item("U_TipoPago").Cells.Item(v_fila).Specific;
+                            SAPbouiCOM.EditText oFtrans = (SAPbouiCOM.EditText)oMatrix.Columns.Item("U_fecha_rete").Cells.Item(v_fila).Specific;
+                            
                             string v_tipoPago = oTipoPago.Value.ToString();
                             bool v_check = oCheck.Checked;
                             //consultamos si esta checkeado
                             if (v_check == true)
                             {
+                                v_frete = oFtrans.Value;
                                 //si la opcion de pago es cheque
                                 if (v_tipoPago.Equals("Transferencia"))
                                 {
@@ -649,6 +718,7 @@ namespace addOnRetencion
                                 v_fila++;
                         }
                         oTransferencia.Value = v_newValor.ToString();
+                        oFechaTrans.Value = v_frete;
 
 
                     }
@@ -916,6 +986,12 @@ namespace addOnRetencion
         {
             try
             {
+                //eliminamos si es que ya existe
+                SAPbobsCOM.Recordset oDelete;
+                oDelete = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                oDelete.DoQuery("DELETE FROM \"@RET_CALCULO\" WHERE \"U_DocNum\"='"+docnum+"' ");
+
+                //definimos variables
                 string v_iva = null;
                 string v_renta = null;
                 decimal v_total = 0;
@@ -939,16 +1015,37 @@ namespace addOnRetencion
                     v_cuotas = int.Parse(otipoRet.Fields.Item(5).Value.ToString());
                     otipoRet.MoveNext();
                 }
+                //impuesto
+                SAPbobsCOM.Recordset oImpuesto;
+                oImpuesto = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                oImpuesto.DoQuery("SELECT \"TaxCode\" FROM PCH1 WHERE \"DocEntry\"='" + v_DocEntry + "' ");
+                string v_taxcode = oImpuesto.Fields.Item(0).Value.ToString();
+
                 //calculamos la retencion
                 if (v_iva.Equals("SI"))
                 {
                     if (v_Moneda.Equals("USD"))
                     {
-                        v_RetIva = decimal.Round(((v_total / 21) * 30) / 100, 2);
+                        if (v_taxcode.Equals("IVA_5"))
+                        {
+                            v_RetIva = decimal.Round(((v_total / 21) * 30) / 100, 2);
+                        }
+                        if (v_taxcode.Equals("IVA_10"))
+                        {
+                            v_RetIva = decimal.Round(((v_total / 11) * 70) / 100, 2);
+                        }
+
                     }
                     else
                     {
-                        v_RetIva = Math.Round(((v_total / 21) * 30) / 100);
+                        if (v_taxcode.Equals("IVA_5"))
+                        {
+                            v_RetIva = Math.Round(((v_total / 21) * 30) / 100);
+                        }
+                        if (v_taxcode.Equals("IVA_10"))
+                        {
+                            v_RetIva = Math.Round(((v_total / 11) * 70) / 100);
+                        }
                     }
 
                 }
@@ -1030,10 +1127,72 @@ namespace addOnRetencion
             }
             catch (Exception e)
             {
-                System.Windows.Forms.MessageBox.Show(e.Message);
+                //System.Windows.Forms.MessageBox.Show(e.Message);
+                SAPbouiCOM.Framework.Application.SBO_Application.MessageBox(e.ToString(), 1, "OK");
             }
         }
 
+        //funcion para leer el json
+        private static void leerTXT(string url)
+        {
+            SAPbouiCOM.Matrix oMatrix = (SAPbouiCOM.Matrix)formPago.Items.Item("20").Specific;
+            int v_can = oMatrix.RowCount;
+            int v_fila = 1;
+            while (v_fila <= v_can)
+            {
+                //obtenemos el docnum de la factura
+                SAPbouiCOM.EditText oDocNum = (SAPbouiCOM.EditText)oMatrix.Columns.Item("1").Cells.Item(v_fila).Specific;
+                SAPbouiCOM.EditText oNroPago = (SAPbouiCOM.EditText)formPago.Items.Item("3").Specific;
+                string v_docnum = oDocNum.Value;
+                string v_nroPago = oNroPago.Value;
+                //consultamos el numero de factura
+                SAPbobsCOM.Recordset oConsulta;
+                oConsulta = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                oConsulta.DoQuery("SELECT \"DocEntry\",\"NumAtCard\" FROM OPCH WHERE \"DocNum\"='" + v_docnum + "' ");
+                string v_factura = oConsulta.Fields.Item(1).Value.ToString();
+                string v_DocEntry = oConsulta.Fields.Item(0).Value.ToString();                              
+                //agarramos el JSON
+                string v_json = File.ReadAllText(url);
+                JArray jsonArray = JArray.Parse(v_json);
+                //recoremos el json
+                foreach (JObject jsonOperaciones in jsonArray.Children<JObject>())
+                {
+                    //extraemos numero de factura
+                    string v_datos = jsonOperaciones["datos"].ToString();
+                    JObject oDetDatos = JObject.Parse(v_datos);
+                    string v_transaccion = oDetDatos["transaccion"].ToString();
+                    JObject oTransDatos = JObject.Parse(v_transaccion);
+                    string v_comprobante = oTransDatos["numeroComprobanteVenta"].ToString();
+                    if (v_factura.Contains(v_comprobante))
+                    {
+                        //extraemos numero de retencion
+                        string v_recepcion = jsonOperaciones["recepcion"].ToString();
+                        JObject oRecepcion = JObject.Parse(v_recepcion);
+                        string v_retencionNro = oRecepcion["numeroComprobante"].ToString();
+                        //instanciamos el objeto
+                        SAPbobsCOM.Payments oPagos;
+                        oPagos = (SAPbobsCOM.Payments)Menu.sbo.GetBusinessObject(BoObjectTypes.oVendorPayments);
+                        if (oPagos.GetByKey(int.Parse(v_nroPago)))
+                        {
+                            oPagos.Invoices.DocEntry = int.Parse(v_DocEntry);
+                            oPagos.Invoices.UserFields.Fields.Item("U_NroRet").Value = v_retencionNro;
+                            int up = oPagos.Update();
+                            if (up != 0)
+                            {
+                                //System.Windows.Forms.MessageBox.Show(Menu.sbo.GetLastErrorDescription());
+                                SAPbouiCOM.Framework.Application.SBO_Application.MessageBox(Menu.sbo.GetLastErrorDescription(), 1, "OK");
+                            }
+                            break;
+                        }
+                    }                  
+                }
+
+
+                v_fila++;
+            }
+            SAPbouiCOM.Framework.Application.SBO_Application.MessageBox("Número de retención actualizado con éxito!!", 1, "OK");
+
+        }
        
 
     }
