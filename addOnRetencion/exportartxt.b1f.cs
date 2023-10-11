@@ -148,9 +148,9 @@ namespace addOnRetencion
                            //retencion
                            "T0.\"DocDate\" AS \"fecha ret\", "+
                            "CASE WHEN T1.\"DocCur\"='GS' THEN 'PYG' ELSE 'USD' END AS \"moneda\", " +
-                           "CASE WHEN T4.\"U_RetReta\" IS NULL OR T4.\"U_RetReta\"=0 THEN 'false' ELSE 'true' END AS \"retencionRenta\", " +
+                           "CASE WHEN (T4.\"U_RetReta\" IS NULL OR T4.\"U_RetReta\"=0) THEN 'false' ELSE 'true' END AS \"retencionRenta\", " +
                            "CASE WHEN T4.\"U_RetReta\" IS NULL OR T4.\"U_RetReta\"=0 THEN '' ELSE 'RENTA_EMPRESARIAL_REGISTRADO.1' END AS \"conceptoRenta\", " +
-                           "CASE WHEN T4.\"U_RetIva\" IS NULL OR T4.\"U_RetIva\"=0 THEN 'false' ELSE 'true' END AS \"retencionIva\", " +
+                           "CASE WHEN (T4.\"U_RetIva\" IS NULL OR T4.\"U_RetIva\"=0) THEN 'false' ELSE 'true' END AS \"retencionIva\", " +
                            "CASE WHEN T4.\"U_RetIva\" IS NULL OR T4.\"U_RetIva\"=0 THEN '' ELSE 'IVA.1' END AS \"conceptoiva\", " +
                            "CASE WHEN T4.\"U_RetReta\" IS NULL THEN '0' ELSE '0,4' END AS \"rentPorcentaje\", " +
                            "'0' AS \"rentaCabezasBase\", "+
@@ -382,7 +382,7 @@ namespace addOnRetencion
                         {"numeroComprobanteVenta",row[4].ToString() },
                         {"cuotas",int.Parse(row[6].ToString()) },
                         {"tipoComprobante",int.Parse(row[7].ToString()) },
-                        {"fecha",v_fecha.ToString("yyyy-MM-dd") },
+                        {"fecha",v_fechaDoc.ToString("yyyy-MM-dd") },
                         {"numeroTimbrado",row[9].ToString() }
                     },
                         detalle = new List<Dictionary<string, object>>
@@ -430,6 +430,7 @@ namespace addOnRetencion
                 //variable a convertir en el formato correcto
                 //formato de la fecha
                 DateTime v_fecha = DateTime.Parse(row[0].ToString());
+                DateTime v_fechaDoc = DateTime.Parse(row[8].ToString());
                 //formato del ruc
                 string v_ruc = row[3].ToString();
                 int index = v_ruc.IndexOf("-");
@@ -470,7 +471,7 @@ namespace addOnRetencion
                         {"numeroComprobanteVenta",row[4].ToString() },
                         {"cuotas",int.Parse(row[6].ToString()) },
                         {"tipoComprobante",int.Parse(row[7].ToString()) },
-                        {"fecha",v_fecha.ToString("yyyy-MM-dd") },
+                        {"fecha",v_fechaDoc.ToString("yyyy-MM-dd") },
                         {"numeroTimbrado",row[9].ToString() }
                     },
                         detalle = new List<Dictionary<string, object>>
@@ -533,7 +534,7 @@ namespace addOnRetencion
                         {"numeroComprobanteVenta",row[4].ToString() },
                         {"cuotas",int.Parse(row[6].ToString()) },
                         {"tipoComprobante",int.Parse(row[7].ToString()) },
-                        {"fecha",v_fecha.ToString("yyyy-MM-dd") },
+                        {"fecha",v_fechaDoc.ToString("yyyy-MM-dd") },
                         {"numeroTimbrado",row[9].ToString() }
                     },
                         detalle = new List<Dictionary<string, object>>

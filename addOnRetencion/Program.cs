@@ -359,8 +359,8 @@ namespace addOnRetencion
                                 string v_renta = oDatos.Fields.Item(1).Value.ToString();
                                 //double iva_v = double.Parse(v_iva.Replace(",","."));
                                 //double renta_v = double.Parse(v_renta.Replace(",","."));
-                                oIVA.Value = v_iva.Replace(",", ".");
-                                oRENTA.Value = v_renta.Replace(",", ".");
+                                //oIVA.Value = v_iva.Replace(",", ".");
+                                //oRENTA.Value = v_renta.Replace(",", ".");
                             }
 
                             v_fila++;
@@ -1138,18 +1138,24 @@ namespace addOnRetencion
             SAPbouiCOM.Matrix oMatrix = (SAPbouiCOM.Matrix)formPago.Items.Item("20").Specific;
             int v_can = oMatrix.RowCount;
             int v_fila = 1;
+            int v_invoiceid = 0;
             while (v_fila <= v_can)
             {
                 //obtenemos el docnum de la factura
                 SAPbouiCOM.EditText oDocNum = (SAPbouiCOM.EditText)oMatrix.Columns.Item("1").Cells.Item(v_fila).Specific;
+                SAPbouiCOM.EditText oNroFac = (SAPbouiCOM.EditText)oMatrix.Columns.Item("U_nrofactura").Cells.Item(v_fila).Specific;
+                SAPbouiCOM.EditText oFechaDoc = (SAPbouiCOM.EditText)oMatrix.Columns.Item("21").Cells.Item(v_fila).Specific;
                 SAPbouiCOM.EditText oNroPago = (SAPbouiCOM.EditText)formPago.Items.Item("3").Specific;
                 string v_docnum = oDocNum.Value;
                 string v_nroPago = oNroPago.Value;
+                string v_nrofac = oNroFac.Value;
+                string v_fechadoc = oFechaDoc.Value;
                 //consultamos el numero de factura
                 SAPbobsCOM.Recordset oConsulta;
                 oConsulta = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
-                oConsulta.DoQuery("SELECT \"DocEntry\",\"NumAtCard\" FROM OPCH WHERE \"DocNum\"='" + v_docnum + "' ");
-                string v_factura = oConsulta.Fields.Item(1).Value.ToString();
+                //oConsulta.DoQuery("SELECT \"DocEntry\",\"NumAtCard\" FROM OPCH WHERE \"DocNum\"='" + v_docnum + "' ");
+                oConsulta.DoQuery("SELECT \"DocEntry\" FROM OPCH WHERE \"NumAtCard\"='"+ v_nrofac + "' AND \"DocDate\"='"+ v_fechadoc + "' AND \"CANCELED\"='N'");
+                //string v_factura = oConsulta.Fields.Item(1).Value.ToString();
                 string v_DocEntry = oConsulta.Fields.Item(0).Value.ToString();                              
                 //agarramos el JSON
                 string v_json = File.ReadAllText(url);
@@ -1163,7 +1169,7 @@ namespace addOnRetencion
                     string v_transaccion = oDetDatos["transaccion"].ToString();
                     JObject oTransDatos = JObject.Parse(v_transaccion);
                     string v_comprobante = oTransDatos["numeroComprobanteVenta"].ToString();
-                    if (v_factura.Contains(v_comprobante))
+                    if (v_nrofac.Contains(v_comprobante))
                     {
                         //extraemos numero de retencion
                         string v_recepcion = jsonOperaciones["recepcion"].ToString();
@@ -1174,14 +1180,17 @@ namespace addOnRetencion
                         oPagos = (SAPbobsCOM.Payments)Menu.sbo.GetBusinessObject(BoObjectTypes.oVendorPayments);
                         if (oPagos.GetByKey(int.Parse(v_nroPago)))
                         {
-                            oPagos.Invoices.DocEntry = int.Parse(v_DocEntry);
+                            //oPagos.Invoices.DocEntry = int.Parse("314950");
+                            oPagos.Invoices.SetCurrentLine(v_invoiceid);
                             oPagos.Invoices.UserFields.Fields.Item("U_NroRet").Value = v_retencionNro;
                             int up = oPagos.Update();
+                            string pp = Menu.sbo.GetLastErrorDescription();
                             if (up != 0)
                             {
                                 //System.Windows.Forms.MessageBox.Show(Menu.sbo.GetLastErrorDescription());
                                 SAPbouiCOM.Framework.Application.SBO_Application.MessageBox(Menu.sbo.GetLastErrorDescription(), 1, "OK");
                             }
+                            v_invoiceid++;
                             break;
                         }
                     }                  
