@@ -11,6 +11,7 @@ using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 using System.Web.UI.WebControls;
+using System.Linq;
 
 namespace addOnRetencion
 {
@@ -23,6 +24,9 @@ namespace addOnRetencion
         public static double TotalRetRenta = 0;
         public static decimal global_coti = 0;
         public static string monedaPago = "GS";
+        public static double totalFact = 0;
+        public static double totalcuota = 0;
+
 
         /// <summary>
         /// The main entry point for the application.
@@ -73,6 +77,18 @@ namespace addOnRetencion
                     //agarramos el ID del form
                     SAPbouiCOM.Form form = SAPbouiCOM.Framework.Application.SBO_Application.Forms.Item(FormUID);
 
+                    //agarrar el total de la factura proveedor
+                    if(pVal.ItemUID=="171" && pVal.EventType == BoEventTypes.et_ITEM_PRESSED && pVal.BeforeAction == true)
+                    {
+                        SAPbouiCOM.EditText ototal = (SAPbouiCOM.EditText)form.Items.Item("29").Specific;
+                        SAPbouiCOM.EditText oCuota = (SAPbouiCOM.EditText)form.Items.Item("170").Specific;
+                        string v_total = ototal.Value;
+                        v_total = string.Concat(v_total.Where(c => Char.IsDigit(c)));
+                        totalFact = double.Parse(v_total);
+                        //totalcuota = double.Parse(oCuota.Value);
+                        //totalcuota = Math.Round((totalFact / totalcuota),0);
+                    }
+                    
                     //FUNCIONES
                     #region AGARRAR EL DOCNUM
                     if (pVal.EventType == BoEventTypes.et_ITEM_PRESSED && pVal.BeforeAction == true)
@@ -357,10 +373,10 @@ namespace addOnRetencion
                                 oDatos.DoQuery("SELECT \"U_RetIva\",\"U_RetReta\" FROM \"@RET_CALCULO\" WHERE \"U_DocNum\"='"+ v_DocNum + "' ");
                                 string v_iva = oDatos.Fields.Item(0).Value.ToString();
                                 string v_renta = oDatos.Fields.Item(1).Value.ToString();
-                                //double iva_v = double.Parse(v_iva.Replace(",","."));
-                                //double renta_v = double.Parse(v_renta.Replace(",","."));
-                                //oIVA.Value = v_iva.Replace(",", ".");
-                                //oRENTA.Value = v_renta.Replace(",", ".");
+                                double iva_v = double.Parse(v_iva.Replace(",", "."));
+                                double renta_v = double.Parse(v_renta.Replace(",", "."));
+                                oIVA.Value = v_iva.Replace(",", ".");
+                                oRENTA.Value = v_renta.Replace(",", ".");
                             }
 
                             v_fila++;
@@ -841,7 +857,99 @@ namespace addOnRetencion
                     }
                 }
                 #endregion
-              
+
+                #region FORM DE PLAZOS
+                if (pVal.FormTypeEx == "65021")
+                {
+                    //agarramos el ID del form
+                    SAPbouiCOM.Form form = SAPbouiCOM.Framework.Application.SBO_Application.Forms.Item(FormUID);
+
+                    //agregar boton de recalcular
+                    if (pVal.EventType == BoEventTypes.et_FORM_LOAD && pVal.BeforeAction == true)
+                    {
+                        SAPbouiCOM.Form oForm = SAPbouiCOM.Framework.Application.SBO_Application.Forms.Item(FormUID);
+                        Item oItem;
+                        SAPbouiCOM.Button oButton;
+                        oItem = oForm.Items.Add("btnRecal", BoFormItemTypes.it_BUTTON);
+                        //Inicializando el objeto boton con la referencia del objeto item
+                        oButton = (SAPbouiCOM.Button)oItem.Specific;
+                        //Agregando propiedades al boton
+                        oButton.Caption = "Recalcular";
+                        //agregando posicio del boton
+                        oItem.Top = oForm.Height - (oItem.Height + 5);
+                        oItem.Left = (oItem.Width + 20) + 60;
+                    }
+
+                    if (pVal.EventType == BoEventTypes.et_FORM_ACTIVATE && pVal.BeforeAction == false)
+                    {
+                        SAPbouiCOM.Matrix oMatrix = (SAPbouiCOM.Matrix)form.Items.Item("3").Specific;
+                        SAPbouiCOM.EditText oCuotaActual = (SAPbouiCOM.EditText)oMatrix.Columns.Item("19").Cells.Item(1).Specific;
+                        totalcuota = double.Parse(string.Concat(oCuotaActual.Value.ToString().Where(c => Char.IsDigit(c))));
+                    }
+
+                    //evento de recalcular cuotas
+                    if (pVal.ItemUID=="btnRecal" && pVal.EventType==BoEventTypes.et_ITEM_PRESSED && pVal.BeforeAction)
+                    {
+                        SAPbouiCOM.Matrix oMatrix = (SAPbouiCOM.Matrix)form.Items.Item("3").Specific;
+                        int v_filas = oMatrix.RowCount;
+                        int cont = 1;
+                        double v_cuotaAux = 0;
+                        //recorremos la matrix
+                        while(cont <= v_filas)
+                        {
+                            SAPbouiCOM.EditText oCuotaActual = (SAPbouiCOM.EditText)oMatrix.Columns.Item("19").Cells.Item(cont).Specific;
+                            string v_cuotaACtual = oCuotaActual.Value;
+                            v_cuotaACtual = string.Concat(v_cuotaACtual.Where(c => Char.IsDigit(c)));
+                            double v_cuota = double.Parse(v_cuotaACtual);
+                            if(v_cuota != totalcuota)
+                            {
+                                v_cuotaAux = v_cuotaAux + v_cuota;
+                            }
+                            cont++;
+                        }
+                        //calculamos las nuevas cuotas
+                        double v_valorNuevo = totalFact - v_cuotaAux;
+
+                        cont = 1;
+                        int conAux = 0;
+                        while (cont <= v_filas)
+                        {
+                            SAPbouiCOM.EditText oCuotaActual = (SAPbouiCOM.EditText)oMatrix.Columns.Item("19").Cells.Item(cont).Specific;
+                            string v_cuotaACtual = oCuotaActual.Value;
+                            v_cuotaACtual = string.Concat(v_cuotaACtual.Where(c => Char.IsDigit(c)));
+                            double v_cuota = double.Parse(v_cuotaACtual);
+                            if (v_cuota == totalcuota)
+                            {
+                                conAux++;
+                            }
+                            cont++;
+                        }
+
+                        double v_cuotaNueva = v_valorNuevo / conAux;
+
+                        //cargamos las nuevas cuotas
+                        cont = 1;
+                        while (cont <= v_filas)
+                        {
+                            SAPbouiCOM.EditText oCuotaActual = (SAPbouiCOM.EditText)oMatrix.Columns.Item("19").Cells.Item(cont).Specific;
+                            string v_cuotaACtual = oCuotaActual.Value;
+                            v_cuotaACtual = string.Concat(v_cuotaACtual.Where(c => Char.IsDigit(c)));
+                            double v_cuota = double.Parse(v_cuotaACtual);
+                            if (v_cuota == totalcuota)
+                            {
+                                oCuotaActual.Value = v_cuotaNueva.ToString(); ;
+                            }
+                            cont++;
+                        }
+
+
+                    }
+                                      
+                    
+
+                }
+                #endregion
+
 
             }
             catch (Exception ex)
@@ -1089,11 +1197,26 @@ namespace addOnRetencion
                         {
                             if (v_Moneda.Equals("USD"))
                             {
-                                v_RetIva = decimal.Round(((v_montoCuota / 21) * 30) / 100, 2);
+                                if (v_taxcode.Equals("IVA_5"))
+                                {
+                                    v_RetIva = decimal.Round(((v_montoCuota / 21) * 30) / 100, 2);
+                                }
+                                if (v_taxcode.Equals("IVA_10"))
+                                {
+                                    v_RetIva = decimal.Round(((v_montoCuota / 11) * 70) / 100, 2);
+                                }
+
                             }
                             else
                             {
-                                v_RetIva = Math.Round(((v_montoCuota / 21) * 30) / 100);
+                                if (v_taxcode.Equals("IVA_5"))
+                                {
+                                    v_RetIva = Math.Round(((v_montoCuota / 21) * 30) / 100);
+                                }
+                                if (v_taxcode.Equals("IVA_10"))
+                                {
+                                    v_RetIva = Math.Round(((v_montoCuota / 11) * 70) / 100);
+                                }
                             }
 
                         }
