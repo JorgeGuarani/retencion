@@ -1191,7 +1191,7 @@ namespace addOnRetencion
                         string v_cuota = " de " + v_cuotas;
                         v_NumCuota = oCuotas.Fields.Item(0).Value.ToString();
                         v_cuota = v_NumCuota + v_cuota;
-                        v_montoCuota = decimal.Parse(oCuotas.Fields.Item(1).Value.ToString());
+                        v_montoCuota = decimal.Parse(oCuotas.Fields.Item(1).Value.ToString()); 
                         //calculamos la retencion
                         if (v_iva.Equals("SI"))
                         {
