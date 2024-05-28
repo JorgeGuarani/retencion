@@ -76,8 +76,8 @@ namespace addOnRetencion
             {
                 if (pVal.BeforeAction && pVal.MenuUID == "addOnRetencion.Form1")
                 {
-                    Form1 activeForm = new Form1();
-                    activeForm.Show();
+                    Form1 export = new Form1();
+                    export.Show();
                 }
             }
             catch (Exception ex)

@@ -322,7 +322,7 @@ namespace addOnRetencion
                         {
                             EditText oCotizacion = (SAPbouiCOM.EditText)form.Items.Item("21").Specific;
                             v_cotiMonto = oCotizacion.Value;
-                            double cotimonto_v = Math.Round(double.Parse(v_cotiMonto.Replace(".",",")));
+                            double cotimonto_v = Math.Round(double.Parse(v_cotiMonto.Replace(",",".")));
                             v_cotiMonto = cotimonto_v.ToString();
                         }
                         //abrimos el form para exportar
@@ -360,7 +360,7 @@ namespace addOnRetencion
                                 v_DocNum = oDocNum.Value;
                                 try
                                 {
-                                    recalcular(v_DocNum);
+                                    recalcularNuevo(v_DocNum);
                                 }
                                 catch (Exception e)
                                 {
@@ -386,6 +386,8 @@ namespace addOnRetencion
                     //para importar el json
                     if (pVal.ItemUID == "btnImp" && pVal.BeforeAction == false && pVal.EventType == BoEventTypes.et_ITEM_PRESSED)
                     {
+                        SAPbouiCOM.EditText oCod = (SAPbouiCOM.EditText)formPago.Items.Item("3").Specific;
+                        string v_cod = oCod.Value;
                         //buscamos el archivo txt
                         Thread t = new Thread(() =>
                         {
@@ -394,7 +396,7 @@ namespace addOnRetencion
                             if (dr == DialogResult.OK)
                             {
                                 string fileName = openFileDialog.FileName;
-                                leerTXT(fileName);
+                                leerTXTversion10(fileName, v_cod);
                                 // FILE.Value = fileName;
                                 //SAPbouiCOM.Framework.Application.SBO_Application.MessageBox(fileName);
                             }
@@ -448,6 +450,7 @@ namespace addOnRetencion
                             {
                                 SAPbouiCOM.EditText oDocNum = (SAPbouiCOM.EditText)oMatrix.Columns.Item("1").Cells.Item(pVal.Row).Specific; 
                                 string v_DocNum = oDocNum.Value;
+                                recalcular(v_DocNum);
                                 SAPbouiCOM.EditText oPlazo = (SAPbouiCOM.EditText)oMatrix.Columns.Item("71").Cells.Item(pVal.Row).Specific;
                                 string v_Plazo = oPlazo.Value;
                                 SAPbouiCOM.EditText oRetIva = (SAPbouiCOM.EditText)oMatrix.Columns.Item("U_RetValorIva").Cells.Item(pVal.Row).Specific;
@@ -472,8 +475,8 @@ namespace addOnRetencion
                                             decimal v_ivaRet = decimal.Parse(oDatosRet.Fields.Item(1).Value.ToString());
                                             decimal v_rentaRet = decimal.Parse(oDatosRet.Fields.Item(2).Value.ToString());
 
-                                            oRetIva.Value = (decimal.Round(v_ivaRet / v_cotizacion, 0)).ToString().Replace(",", ".");
-                                            oRetRenta.Value = (decimal.Round(v_rentaRet / v_cotizacion, 0)).ToString().Replace(",", ".");
+                                            oRetIva.Value = (decimal.Round(v_ivaRet / v_cotizacion, 2)).ToString().Replace(",", ".");
+                                            oRetRenta.Value = (decimal.Round(v_rentaRet / v_cotizacion, 2)).ToString().Replace(",", ".");
                                         }                                       
                                     }
                                     else
@@ -483,8 +486,8 @@ namespace addOnRetencion
                                             decimal v_ivaRet = decimal.Parse(oDatosRet.Fields.Item(1).Value.ToString());
                                             decimal v_rentaRet = decimal.Parse(oDatosRet.Fields.Item(2).Value.ToString());
 
-                                            oRetIva.Value = (decimal.Round(v_ivaRet * v_cotizacion, 0)).ToString().Replace(",", ".");
-                                            oRetRenta.Value = (decimal.Round(v_rentaRet * v_cotizacion, 0)).ToString().Replace(",", ".");
+                                            oRetIva.Value = (decimal.Round(v_ivaRet * v_cotizacion, 0)).ToString().Replace(".", ",");
+                                            oRetRenta.Value = (decimal.Round(v_rentaRet * v_cotizacion, 0)).ToString().Replace(".", ",");
                                         }
                                         else
                                         {
@@ -536,13 +539,29 @@ namespace addOnRetencion
                         if (v_TipoRet.Equals("2"))
                         {
                             oCuenta.Value = "2.01.04.001.002";
-                            oMonto.Value = TotalRetIva.ToString();
+                            if (monedaPago.Equals("USD"))
+                            {
+                                oMonto.Value = TotalRetIva.ToString().Replace(".",",");
+                            }
+                            else
+                            {
+                                oMonto.Value = TotalRetIva.ToString();
+                            }
+                            
                         }
                         //si es retencion renta
                         if (v_TipoRet.Equals("7"))
                         {
                             oCuenta.Value = "2.01.04.001.003";
-                            oMonto.Value = TotalRetRenta.ToString();
+                            if (monedaPago.Equals("USD"))
+                            {
+                                oMonto.Value = TotalRetRenta.ToString().Replace(".", ",");
+                            }
+                            else
+                            {
+                                oMonto.Value = TotalRetRenta.ToString();
+                            }
+                            
                         }
 
                     }
@@ -589,19 +608,19 @@ namespace addOnRetencion
                                     //el tipo de moneda del documento
                                      if (v_tipoMoneda.Equals("GS") || v_tipoMonedaV.Contains("GS"))
                                     {
-                                        string v_totalLinea = Regex.Replace(oTotalLinea.Value, @"([A-Z])", string.Empty);
+                                        string v_totalLinea = Regex.Replace(oTotalLinea.Value, @"([.A-Z])", string.Empty);
                                         string v_totalLineaMone = Regex.Replace(oTotalLinea.Value, @"([.,0-9])", string.Empty);
                                         double v_totalNew = 0;
                                         if (v_totalLineaMone.Contains("USD"))
                                         {
-                                            v_totalNew = Math.Round(double.Parse(v_totalLinea) * v_coti);
+                                            v_totalNew = Math.Round(double.Parse(v_totalLinea.Replace(",", ".")) * v_coti);
                                         }
                                         else
                                         {
                                             v_totalNew = double.Parse(v_totalLinea);
                                         }
-                                        string v_retIva = oValorIva.Value.Replace(".", ",");
-                                        string v_retRenta = oValorRenta.Value.Replace(".", ",");
+                                        string v_retIva = oValorIva.Value.Replace(",", ".");
+                                        string v_retRenta = oValorRenta.Value.Replace(",", ".");
                                         //realizamos el calculo
                                         double v_newValor = v_totalNew - (double.Parse(v_retIva) + double.Parse(v_retRenta));
                                         //oImportaMP.Value = v_newValor.ToString();
@@ -611,8 +630,9 @@ namespace addOnRetencion
                                     }
                                     if (v_tipoMoneda.Equals("USD"))
                                     {
-                                        string v_totalLinea = Regex.Replace(oTotalLinea.Value, @"([A-Z])", string.Empty);
-                                        double d_totalLinea = double.Parse(v_totalLinea);
+                                        string v_totalLinea = Regex.Replace(oTotalLinea.Value, @"([.A-Z])", string.Empty);
+                                        double d_totalLinea = 0;//Convert.ToDouble(v_totalLinea.Replace(",", "."));
+                                        //Math.Round(double.Parse(v_totalLinea.Replace(",", ".")) / v_coti, 2);
                                         string v_totalLineaMone = Regex.Replace(oTotalLinea.Value, @"([.,0-9])", string.Empty);
                                         double d_retIva = 0;
                                         double d_retRenta = 0;
@@ -621,15 +641,17 @@ namespace addOnRetencion
                                             string v_retIva = oValorIva.Value.Replace(".", ",");
                                             string v_retRenta = oValorRenta.Value.Replace(".", ",");
 
-                                            d_retIva = double.Parse(v_retIva);
-                                            d_retRenta = double.Parse(v_retRenta);
+                                            d_retIva = double.Parse(v_retIva.Replace(",", "."));
+                                            d_retRenta = double.Parse(v_retRenta.Replace(",", "."));
+                                            d_totalLinea = Convert.ToDouble(v_totalLinea.Replace(",", "."));
                                         }
                                         else
                                         {
-                                            string v_retIva = oValorIva.Value.Replace(".", ",");
-                                            d_retIva = Math.Round((double.Parse(v_retIva) / v_coti), 2);
-                                            string v_retRenta = oValorRenta.Value.Replace(".", ",");
-                                            d_retRenta = Math.Round((double.Parse(v_retRenta) / v_coti), 2);
+                                            string v_retIva = oValorIva.Value.Replace(",", ".");
+                                            d_retIva = Convert.ToDouble(v_retIva);// Math.Round((double.Parse(v_retIva.Replace(",", ".")) / v_coti), 2);
+                                            string v_retRenta = oValorRenta.Value.Replace(",", ".");
+                                            d_retRenta = Convert.ToDouble(v_retRenta);//Math.Round((double.Parse(v_retRenta.Replace(",", ".")) / v_coti), 2);
+                                            d_totalLinea =  Math.Round(double.Parse(v_totalLinea.Replace(",", ".")) / v_coti, 2);
                                         }
                                         
                                         //realizamos el calculo
@@ -689,40 +711,41 @@ namespace addOnRetencion
                                     //el tipo de moneda del documento
                                     if (v_tipoMoneda.Equals("GS") || v_tipoMonedaV.Contains("GS"))
                                     {
-                                        string v_totalLinea = Regex.Replace(oTotalLinea.Value, @"([A-Z])", string.Empty);
+                                        string v_totalLinea = Regex.Replace(oTotalLinea.Value, @"([.A-Z])", string.Empty);
                                         string v_totalLineaMone = Regex.Replace(oTotalLinea.Value, @"([.,0-9])", string.Empty);
                                         double v_totalNew = 0;
                                         if (v_totalLineaMone.Contains("USD"))
                                         {
-                                            v_totalNew = Math.Round(double.Parse(v_totalLinea) * v_coti);
+                                            v_totalNew = Math.Round(double.Parse(v_totalLinea.Replace(",", ".")) * v_coti);
                                         }
                                         else
                                         {
                                             v_totalNew = double.Parse(v_totalLinea);
                                         }
-                                        string v_retIva = oValorIva.Value.Replace(".", ",");
-                                        string v_retRenta = oValorRenta.Value.Replace(".", ",");
+                                        string v_retIva = oValorIva.Value.Replace(",", ".");
+                                        string v_retRenta = oValorRenta.Value.Replace(",", ".");
                                         //realizamos el calculo
                                         v_newValor = v_newValor +  (v_totalNew - (double.Parse(v_retIva) + double.Parse(v_retRenta)));
                                     }
                                     if (v_tipoMoneda.Equals("USD"))
                                     {
-                                        string v_totalLinea = Regex.Replace(oTotalLinea.Value, @"([A-Z])", string.Empty);
-                                        double d_totalLinea = double.Parse(v_totalLinea);
+                                        string v_totalLinea = Regex.Replace(oTotalLinea.Value, @"([.A-Z])", string.Empty);
+                                        double d_totalLinea = double.Parse(v_totalLinea.Replace(",", "."));
                                         string v_totalLineaMone = Regex.Replace(oTotalLinea.Value, @"([.,0-9])", string.Empty);
                                         if (v_totalLineaMone.Contains("USD"))
                                         {
-                                            string v_retIva = oValorIva.Value.Replace(".", ",");
+                                            string v_retIva = oValorIva.Value.Replace(",", ".");
                                             d_retIva = double.Parse(v_retIva);
-                                            string v_retRenta = oValorRenta.Value.Replace(".", ",");
+                                            string v_retRenta = oValorRenta.Value.Replace(",", ".");
                                             d_retRenta = double.Parse(v_retRenta);
                                         }
                                         else
                                         {
-                                            string v_retIva = oValorIva.Value.Replace(".", ",");
-                                            d_retIva = Math.Round((double.Parse(v_retIva) / v_coti), 2);
-                                            string v_retRenta = oValorRenta.Value.Replace(".", ",");
-                                            d_retRenta = Math.Round((double.Parse(v_retRenta) / v_coti), 2);
+                                            string v_retIva = oValorIva.Value.Replace(",", ".");
+                                            d_retIva = Convert.ToDouble(v_retIva);//Math.Round((double.Parse(v_retIva) / v_coti), 2);
+                                            string v_retRenta = oValorRenta.Value.Replace(",", ".");
+                                            d_retRenta = Convert.ToDouble(v_retRenta);//Math.Round((double.Parse(v_retRenta) / v_coti), 2);
+                                            d_totalLinea = Math.Round((d_totalLinea / v_coti), 2);
                                         }
                                         
                                         //realizamos el calculo
@@ -733,7 +756,15 @@ namespace addOnRetencion
 
                                 v_fila++;
                         }
-                        oTransferencia.Value = v_newValor.ToString();
+                        if (v_tipoMoneda.Equals("USD"))
+                        {
+                            oTransferencia.Value = v_newValor.ToString().Replace(".", ",");
+                        }
+                        else
+                        {
+                            oTransferencia.Value = v_newValor.ToString();
+                        }
+                            
                         oFechaTrans.Value = v_frete;
 
 
@@ -772,54 +803,64 @@ namespace addOnRetencion
                                     //el tipo de moneda del documento
                                     if (v_tipoMoneda.Equals("GS") || v_tipoMonedaV.Contains("GS"))
                                     {
-                                        string v_totalLinea = Regex.Replace(oTotalLinea.Value, @"([A-Z])", string.Empty);
+                                        string v_totalLinea = Regex.Replace(oTotalLinea.Value, @"([.A-Z])", string.Empty);
                                         string v_totalLineaMone = Regex.Replace(oTotalLinea.Value, @"([.,0-9])", string.Empty);
                                         double v_totalNew = 0;
                                         if (v_totalLineaMone.Contains("USD"))
                                         {
-                                            v_totalNew = Math.Round(double.Parse(v_totalLinea) * v_coti);
+                                            v_totalNew = Math.Round(double.Parse(v_totalLinea.Replace(",", ".")) * v_coti);
                                         }
                                         else
                                         {
                                             v_totalNew = double.Parse(v_totalLinea);
                                         }
-                                        string v_retIva = oValorIva.Value.Replace(".", ",");
-                                        string v_retRenta = oValorRenta.Value.Replace(".", ",");
+                                        string v_retIva = oValorIva.Value.Replace(",", ".");
+                                        string v_retRenta = oValorRenta.Value.Replace(",", ".");
                                         //realizamos el calculo
                                         v_newValor = v_newValor + (v_totalNew - (double.Parse(v_retIva) + double.Parse(v_retRenta)));
                                     }
                                     if (v_tipoMoneda.Equals("USD"))
                                     {
-                                        string v_totalLinea = Regex.Replace(oTotalLinea.Value, @"([A-Z])", string.Empty);
-                                        double d_totalLinea = double.Parse(v_totalLinea);
+                                        string v_totalLinea = Regex.Replace(oTotalLinea.Value, @"([.A-Z])", string.Empty);
+                                        double d_totalLinea = double.Parse(v_totalLinea.Replace(",", "."));
                                         string v_totalLineaMone = Regex.Replace(oTotalLinea.Value, @"([.,0-9])", string.Empty);
                                         double d_retIva = 0;
                                         double d_retRenta = 0;
                                         if (v_totalLineaMone.Contains("USD"))
                                         {
-                                            string v_retIva = oValorIva.Value.Replace(".", ",");
-                                            string v_retRenta = oValorRenta.Value.Replace(".", ",");
+                                            string v_retIva = oValorIva.Value.Replace(",", ".");
+                                            string v_retRenta = oValorRenta.Value.Replace(",", ".");
 
                                             d_retIva = double.Parse(v_retIva);
                                             d_retRenta = double.Parse(v_retRenta);
                                         }
                                         else
                                         {
-                                            string v_retIva = oValorIva.Value.Replace(".", ",");
-                                            d_retIva = Math.Round((double.Parse(v_retIva) / v_coti), 2);
-                                            string v_retRenta = oValorRenta.Value.Replace(".", ",");
-                                            d_retRenta = Math.Round((double.Parse(v_retRenta) / v_coti), 2);
+                                            string v_retIva = oValorIva.Value.Replace(",", ".");
+                                            d_retIva = Convert.ToDouble(v_retIva);//Math.Round((double.Parse(v_retIva) / v_coti), 2);
+                                            string v_retRenta = oValorRenta.Value.Replace(",", ".");
+                                            d_retRenta = Convert.ToDouble(v_retRenta);//Math.Round((double.Parse(v_retRenta) / v_coti), 2);
+                                            d_totalLinea = Math.Round((d_totalLinea / v_coti), 2);
                                         }
                                        
                                         //realizamos el calculo
                                         v_newValor = v_newValor + (d_totalLinea - (d_retIva + d_retRenta));
+                                        
                                     }
                                 }
                             }
 
                             v_fila++;
                         }
-                        oEfectivo.Value = v_newValor.ToString();
+                        if (v_tipoMoneda.Equals("USD"))
+                        {
+                            oEfectivo.Value = v_newValor.ToString().Replace(".",",");
+                        }
+                        else
+                        {
+                            oEfectivo.Value = v_newValor.ToString();
+                        }
+                            
 
 
                     }
@@ -846,8 +887,8 @@ namespace addOnRetencion
                             bool v_check = oCheck.Checked;
                             if (v_check == true)
                             {
-                                double v_totalIva = double.Parse(oValorIva.Value.Replace(".", ","));
-                                double v_totalRenta = double.Parse(oValorRenta.Value.Replace(".", ","));
+                                double v_totalIva = double.Parse(oValorIva.Value.Replace(",", "."));
+                                double v_totalRenta = double.Parse(oValorRenta.Value.Replace(",", "."));
 
                                 TotalRetIva = TotalRetIva + v_totalIva;
                                 TotalRetRenta = TotalRetRenta + v_totalRenta;
@@ -1081,8 +1122,16 @@ namespace addOnRetencion
                 var v_fecha = v_cheque.fecha;
                 string monto_v = Convert.ToString(v_monto);
                 string fecha_v = Convert.ToString(v_fecha);
-                oImportaMP.Value = monto_v;
+                
                 oFecha.Value = fecha_v;
+                if (monedaPago.Equals("USD"))
+                {
+                    oImportaMP.Value = monto_v.Replace(".",",");
+                }
+                else
+                {
+                    oImportaMP.Value = monto_v;
+                }
 
                 v_filaCheque++;
             }
@@ -1123,6 +1172,7 @@ namespace addOnRetencion
                     v_cuotas = int.Parse(otipoRet.Fields.Item(5).Value.ToString());
                     otipoRet.MoveNext();
                 }
+
                 //impuesto
                 SAPbobsCOM.Recordset oImpuesto;
                 oImpuesto = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
@@ -1162,11 +1212,11 @@ namespace addOnRetencion
                 {
                     if (v_Moneda.Equals("USD"))
                     {
-                        v_RetRenta = decimal.Round((v_total / decimal.Parse("1,05")) * decimal.Parse("0,004"), 2);
+                        v_RetRenta = decimal.Round((v_total / decimal.Parse("1.05")) * decimal.Parse("0.004"), 2);
                     }
                     else
                     {
-                        v_RetRenta = Math.Round((v_total / decimal.Parse("1,05")) * decimal.Parse("0,004"));
+                        v_RetRenta = Math.Round((v_total / decimal.Parse("1.05")) * decimal.Parse("0.004"));
                     }
                 }
 
@@ -1191,32 +1241,17 @@ namespace addOnRetencion
                         string v_cuota = " de " + v_cuotas;
                         v_NumCuota = oCuotas.Fields.Item(0).Value.ToString();
                         v_cuota = v_NumCuota + v_cuota;
-                        v_montoCuota = decimal.Parse(oCuotas.Fields.Item(1).Value.ToString()); 
+                        v_montoCuota = decimal.Parse(oCuotas.Fields.Item(1).Value.ToString());
                         //calculamos la retencion
                         if (v_iva.Equals("SI"))
                         {
                             if (v_Moneda.Equals("USD"))
                             {
-                                if (v_taxcode.Equals("IVA_5"))
-                                {
-                                    v_RetIva = decimal.Round(((v_montoCuota / 21) * 30) / 100, 2);
-                                }
-                                if (v_taxcode.Equals("IVA_10"))
-                                {
-                                    v_RetIva = decimal.Round(((v_montoCuota / 11) * 70) / 100, 2);
-                                }
-
+                                v_RetIva = decimal.Round(((v_montoCuota / 21) * 30) / 100, 2);
                             }
                             else
                             {
-                                if (v_taxcode.Equals("IVA_5"))
-                                {
-                                    v_RetIva = Math.Round(((v_montoCuota / 21) * 30) / 100);
-                                }
-                                if (v_taxcode.Equals("IVA_10"))
-                                {
-                                    v_RetIva = Math.Round(((v_montoCuota / 11) * 70) / 100);
-                                }
+                                v_RetIva = Math.Round(((v_montoCuota / 21) * 30) / 100);
                             }
 
                         }
@@ -1225,11 +1260,11 @@ namespace addOnRetencion
                         {
                             if (v_Moneda.Equals("USD"))
                             {
-                                v_RetRenta = decimal.Round((v_montoCuota / decimal.Parse("1,05")) * decimal.Parse("0,004"), 2);
+                                v_RetRenta = decimal.Round((v_montoCuota / decimal.Parse("1.05")) * decimal.Parse("0.004"), 2);
                             }
                             else
                             {
-                                v_RetRenta = Math.Round((v_montoCuota / decimal.Parse("1,05")) * decimal.Parse("0,004"));
+                                v_RetRenta = Math.Round((v_montoCuota / decimal.Parse("1.05")) * decimal.Parse("0.004"));
                             }
                         }
 
@@ -1325,7 +1360,230 @@ namespace addOnRetencion
             SAPbouiCOM.Framework.Application.SBO_Application.MessageBox("Número de retención actualizado con éxito!!", 1, "OK");
 
         }
-       
+
+        //funcion para leer el json
+        private static void leerTXTversion10(string url, string cod)
+        {
+            //listamos las facturas del pago
+            int v_invoiceid = 0;
+            SAPbobsCOM.Recordset oFacturas;
+            oFacturas = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+            oFacturas.DoQuery("SELECT T1.\"DocNum\",T1.\"NumAtCard\",T1.\"DocDate\",T0.\"DocEntry\" FROM OVPM T0 INNER JOIN OPCH T1 ON T0.\"DocEntry\" = T1.\"ReceiptNum\" WHERE T0.\"DocNum\" = '"+ cod + "'");
+            while (!oFacturas.EoF)
+            {
+                string v_docnum = oFacturas.Fields.Item(0).Value.ToString();
+                string v_nroPago = oFacturas.Fields.Item(3).Value.ToString();
+                string v_nrofac = oFacturas.Fields.Item(1).Value.ToString();
+                string v_fechadoc = oFacturas.Fields.Item(2).Value.ToString();
+                DateTime fecha_v = DateTime.Parse(v_fechadoc);
+                string FECHA = fecha_v.ToString("yyyyMMdd");
+               
+                //consultamos el numero de factura
+                SAPbobsCOM.Recordset oConsulta;
+                oConsulta = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                //oConsulta.DoQuery("SELECT \"DocEntry\",\"NumAtCard\" FROM OPCH WHERE \"DocNum\"='" + v_docnum + "' ");
+                oConsulta.DoQuery("SELECT \"DocEntry\" FROM OPCH WHERE \"NumAtCard\"='" + v_nrofac + "' AND \"DocDate\"='" + FECHA + "' AND \"CANCELED\"='N'");
+                //string v_factura = oConsulta.Fields.Item(1).Value.ToString();
+                string v_DocEntry = oConsulta.Fields.Item(0).Value.ToString();
+                //agarramos el JSON
+                string v_json = File.ReadAllText(url);
+                JArray jsonArray = JArray.Parse(v_json);
+                //recoremos el json
+                foreach (JObject jsonOperaciones in jsonArray.Children<JObject>())
+                {
+                    //extraemos numero de factura
+                    string v_datos = jsonOperaciones["datos"].ToString();
+                    JObject oDetDatos = JObject.Parse(v_datos);
+                    string v_transaccion = oDetDatos["transaccion"].ToString();
+                    JObject oTransDatos = JObject.Parse(v_transaccion);
+                    string v_comprobante = oTransDatos["numeroComprobanteVenta"].ToString();
+                    if (v_nrofac.Contains(v_comprobante))
+                    {
+                        //extraemos numero de retencion
+                        string v_recepcion = jsonOperaciones["recepcion"].ToString();
+                        JObject oRecepcion = JObject.Parse(v_recepcion);
+                        string v_retencionNro = oRecepcion["numeroComprobante"].ToString();
+                        //instanciamos el objeto
+                        SAPbobsCOM.Payments oPagos;
+                        oPagos = (SAPbobsCOM.Payments)Menu.sbo.GetBusinessObject(BoObjectTypes.oVendorPayments);
+                        if (oPagos.GetByKey(int.Parse(v_nroPago)))
+                        {
+                            //oPagos.Invoices.DocEntry = int.Parse("314950");
+                            oPagos.Invoices.SetCurrentLine(v_invoiceid);
+                            oPagos.Invoices.UserFields.Fields.Item("U_NroRet").Value = v_retencionNro;
+                            int up = oPagos.Update();
+                            string pp = Menu.sbo.GetLastErrorDescription();
+                            if (up != 0)
+                            {
+                                //System.Windows.Forms.MessageBox.Show(Menu.sbo.GetLastErrorDescription());
+                                SAPbouiCOM.Framework.Application.SBO_Application.MessageBox(Menu.sbo.GetLastErrorDescription(), 1, "OK");
+                            }
+                            v_invoiceid++;
+                            break;
+                        }
+                    }
+                }
+                oFacturas.MoveNext();
+            }          
+            SAPbouiCOM.Framework.Application.SBO_Application.MessageBox("Número de retención actualizado con éxito!!", 1, "OK");
+
+        }
+
+        //funcion para recalcular
+        private static void recalcularNuevo(string docnum)
+        {
+            try
+            {
+                //eliminamos si es que ya existe
+                SAPbobsCOM.Recordset oDelete;
+                oDelete = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                oDelete.DoQuery("DELETE FROM \"@RET_CALCULO\" WHERE \"U_DocNum\"='" + docnum + "' ");
+
+                //definimos variables
+                string v_iva = null;
+                string v_renta = null;
+                decimal v_total = 0;
+                decimal v_RetRenta = 0;
+                decimal v_RetIva = 0;
+                string v_Moneda = null;
+                string v_DocEntry = null;
+                int v_cuotas = 0;
+                int v_cantidad = 0;
+
+
+                //consultamos el tipo de retención
+                SAPbobsCOM.Recordset otipoRet;
+                otipoRet = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                otipoRet.DoQuery("SELECT T0.\"U_RetIVA\",T0.\"U_RetRenta\",T1.\"PriceAfVAT\",T0.\"DocCur\",T0.\"DocEntry\",T0.\"Installmnt\",T1.\"TaxCode\",CASE WHEN T1.\"Quantity\"=0 THEN 1 ELSE T1.\"Quantity\" END FROM OPCH T0 INNER JOIN PCH1 T1 ON T0.\"DocEntry\"=T1.\"DocEntry\" WHERE T0.\"DocNum\"='" + docnum + "'");
+                while (!otipoRet.EoF)
+                {
+                    v_iva = otipoRet.Fields.Item(0).Value.ToString();
+                    v_renta = otipoRet.Fields.Item(1).Value.ToString();
+                    v_total = decimal.Parse(otipoRet.Fields.Item(2).Value.ToString()) * decimal.Parse(otipoRet.Fields.Item(7).Value.ToString());
+                    v_Moneda = otipoRet.Fields.Item(3).Value.ToString();
+                    v_DocEntry = otipoRet.Fields.Item(4).Value.ToString();
+                    v_cuotas = int.Parse(otipoRet.Fields.Item(5).Value.ToString());
+                    v_cantidad = int.Parse(otipoRet.Fields.Item(7).Value.ToString());
+                    //calculo de la retención
+                    //SAPbobsCOM.Recordset oImpuesto;
+                    //oImpuesto = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                    //oImpuesto.DoQuery("SELECT \"TaxCode\" FROM PCH1 WHERE \"DocEntry\"='" + v_DocEntry + "' ");
+                    string v_taxcode = otipoRet.Fields.Item(6).Value.ToString(); //oImpuesto.Fields.Item(0).Value.ToString();
+
+                    //calculamos la retencion
+                    if (v_iva.Equals("SI"))
+                    {
+                        if (v_Moneda.Equals("USD"))
+                        {
+                            if (v_taxcode.Equals("IVA_5"))
+                            {
+                                v_RetIva = v_RetIva + decimal.Round(((v_total / 21) * 30) / 100, 2);
+                            }
+                            if (v_taxcode.Equals("IVA_10"))
+                            {
+                                v_RetIva = v_RetIva + decimal.Round(((v_total / 11) * 70) / 100, 2);
+                            }
+
+                        }
+                        else
+                        {
+                            if (v_taxcode.Equals("IVA_5"))
+                            {
+                                v_RetIva = v_RetIva + Math.Round(((v_total / 21) * 30) / 100);
+                            }
+                            if (v_taxcode.Equals("IVA_10"))
+                            {
+                                v_RetIva = v_RetIva + Math.Round(((v_total / 11) * 70) / 100);
+                            }
+                        }
+
+                    }
+                    //en caso de ser solo IVA
+                    if (v_renta.Equals("SI"))
+                    {
+                        if (v_Moneda.Equals("USD"))
+                        {
+                            v_RetRenta = v_RetRenta + decimal.Round((v_total / decimal.Parse("1.05")) * decimal.Parse("0.004"), 2);
+                        }
+                        else
+                        {
+                            v_RetRenta = v_RetRenta + Math.Round((v_total / decimal.Parse("1.05")) * decimal.Parse("0.004"));
+                        }
+                    }
+
+                    otipoRet.MoveNext();
+                }
+               
+
+                //guardamos en la tabla de calculo de retención
+                SAPbobsCOM.Recordset codMax;
+                codMax = (Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                codMax.DoQuery("select CASE WHEN MAX(\"DocEntry\")=0 THEN 1 ELSE  MAX(\"DocEntry\") END from \"@RET_CALCULO\" ");
+                int MaxCod = int.Parse(codMax.Fields.Item(0).Value.ToString()) + 1;
+
+                string v_NumCuota = null;
+                decimal v_montoCuota = 0;
+                //consultamos si es por cuotas
+                if (v_cuotas > 1)
+                {
+                    SAPbobsCOM.Recordset oCuotas;
+                    oCuotas = (Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                    oCuotas.DoQuery("SELECT \"InstlmntID\",\"InsTotal\" FROM PCH6 WHERE \"DocEntry\"='" + v_DocEntry + "' ");
+                    //recorremos
+                    while (!oCuotas.EoF)
+                    {
+                        string v_cuota = " de " + v_cuotas;
+                        v_NumCuota = oCuotas.Fields.Item(0).Value.ToString();
+                        v_cuota = v_NumCuota + v_cuota;
+                        v_montoCuota = decimal.Parse(oCuotas.Fields.Item(1).Value.ToString());
+                        //calculamos la retencion
+                        if (v_iva.Equals("SI"))
+                        {
+                            if (v_Moneda.Equals("USD"))
+                            {
+                                v_RetIva = decimal.Round(((v_montoCuota / 21) * 30) / 100, 2);
+                            }
+                            else
+                            {
+                                v_RetIva = Math.Round(((v_montoCuota / 21) * 30) / 100);
+                            }
+
+                        }
+                        //en caso de ser solo IVA
+                        if (v_renta.Equals("SI"))
+                        {
+                            if (v_Moneda.Equals("USD"))
+                            {
+                                v_RetRenta = decimal.Round((v_montoCuota / decimal.Parse("1.05")) * decimal.Parse("0.004"), 2);
+                            }
+                            else
+                            {
+                                v_RetRenta = Math.Round((v_montoCuota / decimal.Parse("1.05")) * decimal.Parse("0.004"));
+                            }
+                        }
+
+                        SAPbobsCOM.Recordset oGrabar;
+                        oGrabar = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                        oGrabar.DoQuery("INSERT INTO \"@RET_CALCULO\" (\"Code\",\"DocEntry\",\"U_DocNum\",\"U_Estado\",\"U_RetIva\",\"U_RetReta\",\"U_Plazo\",\"U_Moneda\") VALUES ('" + MaxCod + "','" + MaxCod + "','" + docnum + "','P','" + v_RetIva.ToString().Replace(",", ".") + "', '" + v_RetRenta.ToString().Replace(",", ".") + "', '" + v_cuota + "','" + v_Moneda + "') ");
+
+                        MaxCod++;
+                        oCuotas.MoveNext();
+                    }
+                }
+                else
+                {
+                    SAPbobsCOM.Recordset oGrabar;
+                    oGrabar = (SAPbobsCOM.Recordset)Menu.sbo.GetBusinessObject(BoObjectTypes.BoRecordset);
+                    oGrabar.DoQuery("INSERT INTO \"@RET_CALCULO\" (\"Code\",\"DocEntry\",\"U_DocNum\",\"U_Estado\",\"U_RetIva\",\"U_RetReta\",\"U_Plazo\",\"U_Moneda\") VALUES ('" + MaxCod + "','" + MaxCod + "','" + docnum + "','P','" + v_RetIva.ToString().Replace(",", ".") + "', '" + v_RetRenta.ToString().Replace(",", ".") + "','1 de 1','" + v_Moneda + "') ");
+                }
+            }
+            catch (Exception e)
+            {
+                //System.Windows.Forms.MessageBox.Show(e.Message);
+                SAPbouiCOM.Framework.Application.SBO_Application.MessageBox(e.ToString(), 1, "OK");
+            }
+        }
+
 
     }
 }
